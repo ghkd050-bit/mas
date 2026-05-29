@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAS - Mental Accounting System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans KR for main text, Comfortaa for premium logo -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons for clean, modern interfaces -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- CryptoJS (End-to-End Encryption support) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif'],
+                        logo: ['Comfortaa', 'sans-serif'],
+                    },
+                    colors: {
+                        studentBlue: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            200: '#bae0fd',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a'
+                        },
+                        studentMint: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#10b981',
+                            600: '#059669'
+                        },
+                        studentPurple: {
+                            50: '#faf5ff',
+                            100: '#f3e8ff',
+                            500: '#a855f7',
+                            600: '#9333ea'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .tab-transition {
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        }
+        .score-bar {
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* Financial Statement Custom Styling for pixel-perfect reproduction */
+        .bs-table th, .bs-table td {
+            padding: 10px 14px;
+            font-size: 12px;
+            border-bottom: 1px solid #f1f5f9;
+            border-right: 1px solid #f1f5f9;
+        }
+        .bs-table th:last-child, .bs-table td:last-child {
+            border-right: none;
+        }
+        .bs-table tr:hover {
+            background-color: #f8fafc;
+        }
+        /* Custom dynamic toast alerts animation */
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-toast {
+            animation: slideInRight 0.3s ease-out forwards;
+        }
+        /* Valuation tooltip styling */
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip-content {
+            display: none;
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1e293b;
+            color: #fff;
+            padding: 14px;
+            border-radius: 16px;
+            width: 280px;
+            font-size: 11px;
+            z-index: 100;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            line-height: 1.5;
+        }
+        .tooltip-wrapper:hover .tooltip-content {
+            display: block;
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex text-slate-800 bg-slate-50">
+
+    <!-- FLOATING TOAST CONTAINER (No-alert modern alerts system) -->
+    <div id="toast-container" class="fixed top-6 right-6 z-50 space-y-3 pointer-events-none w-80 max-w-full"></div>
+
+    <!-- CUSTOM CONFIRM DIALOG MODAL -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200">
+        <div class="bg-white rounded-[32px] p-6 max-w-md w-11/12 shadow-2xl transform scale-95 transition-transform duration-200">
+            <div class="flex items-center gap-4 text-rose-500 mb-4">
+                <div class="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h4 class="font-bold text-lg text-slate-900" id="confirm-title">확인 필요</h4>
+            </div>
+            <p class="text-sm text-slate-500 leading-relaxed mb-6" id="confirm-message">이 작업을 진행하시겠습니까?</p>
+            <div class="flex gap-3">
+                <button id="confirm-cancel-btn" class="flex-1 py-3.5 text-sm font-bold text-slate-500 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">취소</button>
+                <button id="confirm-ok-btn" class="flex-1 py-3.5 text-sm font-bold text-white bg-rose-600 rounded-2xl hover:bg-rose-700 transition-colors">완전 파기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ------------------ EVALUATION MODALS (VALUATION SURVEYS) ------------------ -->
+
+    <!-- 자격증 가치 평가 모달 -->
+    <div id="certModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white rounded-[32px] p-6 max-w-md w-11/12 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 class="font-bold text-lg text-slate-900 mb-4 flex items-center justify-center gap-2">
+                <span class="text-blue-600"><i class="fa-solid fa-certificate"></i></span>
+                <span>자격증 가치 평가</span>
+                <button type="button" onclick="toggleCertGuide()" class="text-slate-400 hover:text-blue-600 transition-colors focus:outline-none" title="등급별 기준 펼치기">
+                    <i id="cert-guide-icon" class="fa-solid fa-circle-info text-lg transition-transform duration-200"></i>
+                </button>
+            </h3>
+            
+            <!-- 등급 기준 펼침 영역 (image_105125.png 기준 완벽 이식) -->
+            <div id="cert-guide-panel" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-slate-50 border border-slate-100 rounded-2xl mb-0">
+                <div class="p-4 space-y-4 text-xs text-slate-600">
+                    <h4 class="font-bold text-slate-800 text-sm border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-table-list text-blue-500"></i> 자격증 등급별 기준
+                    </h4>
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-slate-400 font-bold">
+                                <th class="py-1.5 w-[30%]">등급</th>
+                                <th class="py-1.5 w-[35%] text-center">내용연수</th>
+                                <th class="py-1.5 w-[35%] text-right">잔존가치</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                            <tr>
+                                <td class="py-2.5">일반/중급</td>
+                                <td class="py-2.5 text-center">3년</td>
+                                <td class="py-2.5 text-right text-slate-500">0원</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5">핵심</td>
+                                <td class="py-2.5 text-center">10년</td>
+                                <td class="py-2.5 text-right text-blue-600">취득원가의 10%</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5">전략</td>
+                                <td class="py-2.5 text-center">30년</td>
+                                <td class="py-2.5 text-right text-indigo-600 font-bold">취득원가의 30%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="space-y-2 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
+                        <div class="flex items-start gap-1.5">
+                            <span class="text-blue-500 font-extrabold">•</span>
+                            <p><strong>일반/중급:</strong> 기초 지식 관련, 빠른 소멸</p>
+                        </div>
+                        <div class="flex items-start gap-1.5">
+                            <span class="text-blue-500 font-extrabold">•</span>
+                            <p><strong>핵심:</strong> 실무 역량 중심, 갱신 시 가치 유지</p>
+                        </div>
+                        <div class="flex items-start gap-1.5">
+                            <span class="text-blue-500 font-extrabold">•</span>
+                            <p><strong>전략:</strong> 법적 면허/평생 자산, 은퇴 시까지 가치 보존</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-left">
+                <div>
+                    <p class="text-xs font-bold text-slate-500 mb-1.5">Q1. 이 자격증을 취득하기 위한 공부량은 다음 중 어느 정도였습니까?</p>
+                    <select id="q1" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500">
+                        <option value="1">운전면허 필기 시험 (매우 낮음, 1점)</option>
+                        <option value="2">대학교 전공 시험 기초준비 (낮음, 2점)</option>
+                        <option value="3">전공 과목 B~B+의 성적받기 (보통, 3점)</option>
+                        <option value="4">7~9급 공무원 시험수준 (높음, 4점)</option>
+                        <option value="5">전문직 고시 (매우 높음, 5점)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <p class="text-xs font-bold text-slate-500 mb-1.5">Q2. 이 자격증을 취득하기 위해 포기해야 했던 자유 시간은 어느 정도입니까?</p>
+                    <select id="q2" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500">
+                        <option value="1">주말 하루면 충분하다. (1점)</option>
+                        <option value="2">한 달 정도 약속을 줄였다. (2점)</option>
+                        <option value="3">1~2년 동안 삶의 몰입을 쏟아부었다. (3점)</option>
+                        <option value="4">휴학을 고민할 정도로 무거웠다. (4점)</option>
+                        <option value="5">3년 이상의 장기 투자가 필요했다. (5점)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <p class="text-xs font-bold text-slate-500 mb-1.5">Q3. 이 자격증을 취득했을 때, 내 인생의 미래 공격력은 어떻게 변화합니까?</p>
+                    <select id="q3" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500">
+                        <option value="1">온전한 자기만족 수준이다. (1점)</option>
+                        <option value="2">이력서에 의미 있는 한 줄을 채운다. (2점)</option>
+                        <option value="3">관련 업계 취업 시 확실한 우대를 받는다. (3점)</option>
+                        <option value="4">사회에서 알아주는 핵심 기술을 갖게 된다. (4점)</option>
+                        <option value="5">내가 업계에서 독자적인 주도권을 갖게 된다. (5점)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button id="certCancelBtn" class="flex-1 py-3 text-xs font-bold text-slate-500 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">취소</button>
+                <button id="certSubmitBtn" class="flex-1 py-3 text-xs font-bold text-white bg-blue-600 rounded-2xl hover:bg-blue-700 transition-colors">평가 완료</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 학점 가치 평가 모달 -->
+    <div id="gradeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white rounded-[32px] p-6 max-w-sm w-11/12 shadow-2xl text-center">
+            <h3 class="font-bold text-lg text-slate-900 mb-2">학점 자산 평가</h3>
+            <p class="text-xs text-slate-400 mb-4">취득하신 최종 성적 등급을 선택해주세요.</p>
+            
+            <div class="mb-4">
+                <select id="gradeSelect" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-blue-500" onchange="updateGradePreview()">
+                    <option value="25">A+ (가중치 최대)</option>
+                    <option value="20">A</option>
+                    <option value="15">A-</option>
+                    <option value="10">B+</option>
+                    <option value="5">B 이하</option>
+                </select>
+            </div>
+            
+            <p id="gradeResultPreview" class="text-sm font-extrabold text-blue-600 bg-blue-50 py-3 rounded-2xl mb-6">예상 자산 가치: 250,750 원</p>
+            
+            <div class="flex gap-3">
+                <button id="gradeCancelBtn" class="flex-1 py-3 text-xs font-bold text-slate-500 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">취소</button>
+                <button id="gradeSubmitBtn" class="flex-1 py-3 text-xs font-bold text-white bg-blue-600 rounded-2xl hover:bg-blue-700 transition-colors">자산 등록</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 대외활동/공모전 가치 평가 모달 -->
+    <div id="activityModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white rounded-[32px] p-6 max-w-sm w-11/12 shadow-2xl">
+            <h3 class="font-bold text-lg text-slate-900 mb-2 text-center">활동 가치 평가</h3>
+            <p class="text-xs text-slate-400 text-center mb-5">투입 자원량과 부가 가치를 정산합니다.</p>
+            
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">소요 시간 (시간 단위 입력)</label>
+                    <input type="number" id="activityTime" placeholder="예: 40" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-blue-500">
+                </div>
+
+                <div class="flex items-center gap-2 py-1">
+                    <input type="checkbox" id="hasPrize" class="w-4 h-4 accent-blue-600 rounded cursor-pointer" onchange="togglePrizeInput()">
+                    <label for="hasPrize" class="text-xs font-bold text-slate-600 cursor-pointer">상금을 수혜하셨나요?</label>
+                </div>
+
+                <div id="prizeInputGroup" class="hidden">
+                    <label class="block text-xs font-bold text-slate-400 mb-1">상금 수혜 금액 (원)</label>
+                    <input type="number" id="prizeAmount" placeholder="예: 500000" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button id="activityCancelBtn" class="flex-1 py-3 text-xs font-bold text-slate-500 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">취소</button>
+                <button id="activitySubmitBtn" class="flex-1 py-3 text-xs font-bold text-white bg-blue-600 rounded-2xl hover:bg-blue-700 transition-colors">등록 완료</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스트레스 부채 평가 모달 -->
+    <div id="stressModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white rounded-[32px] p-6 max-w-sm w-11/12 shadow-2xl text-center">
+            <h3 class="font-bold text-lg text-rose-600 mb-2">스트레스 부채 평가</h3>
+            <p class="text-xs text-slate-400 mb-5">현재 피부로 겪고 계신 감정 부하를 측정합니다.</p>
+            
+            <div class="mb-4">
+                <select id="stressSelect" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-rose-500" onchange="updateStressPreview()">
+                    <option value="1">가벼운 피로 (V=1)</option>
+                    <option value="5">정상 범위를 웃도는 보통 피로 (V=5)</option>
+                    <option value="10">완전한 신체/정신적 번아웃 (V=10)</option>
+                </select>
+            </div>
+            
+            <p id="stressResultPreview" class="text-sm font-extrabold text-rose-600 bg-rose-50 py-3 rounded-2xl mb-6">예상 부채 가치: -10,030 원</p>
+            
+            <div class="flex gap-3">
+                <button id="stressCancelBtn" class="flex-1 py-3 text-xs font-bold text-slate-500 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors">취소</button>
+                <button id="stressSubmitBtn" class="flex-1 py-3 text-xs font-bold text-white bg-rose-600 rounded-2xl hover:bg-rose-700 transition-colors">부채 등록</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 설정 및 데이터 백업 관리 모달 -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white rounded-[32px] p-6 max-w-xs w-11/12 shadow-2xl text-center">
+            <h3 class="font-bold text-lg text-slate-900 mb-2 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-gear text-slate-500"></i>
+                <span>데이터 수동 관리</span>
+            </h3>
+            <p class="text-xs text-slate-400 mb-6">성장 데이터 보존을 위한 수동 백업 기능</p>
+            
+            <div class="space-y-3 mb-6">
+                <button onclick="exportData()" class="w-full py-3 text-xs font-bold text-white bg-slate-700 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-download"></i> 데이터 내보내기 (.json)
+                </button>
+                <button onclick="triggerImport()" class="w-full py-3 text-xs font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-upload"></i> 데이터 가져오기 (.json)
+                </button>
+                <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(this)">
+            </div>
+            
+            <button id="closeSettingsBtn" onclick="toggleModal('settingsModal', false)" class="w-full py-3 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">닫기</button>
+        </div>
+    </div>
+
+
+    <!-- ------------------ VIEW A: LOGIN & SIGNUP SCREEN (Toss Style) ------------------ -->
+    <div id="auth-screen" class="absolute inset-0 z-40 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center overflow-y-auto px-4 py-8 select-none">
+        <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
+            <div class="absolute -top-40 -left-40 w-96 h-96 bg-blue-500 rounded-full blur-3xl animate-pulse"></div>
+            <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500 rounded-full blur-3xl animate-pulse"></div>
+        </div>
+
+        <div class="bg-white/95 backdrop-blur-md rounded-[32px] shadow-2xl p-8 w-full max-w-md border border-white/20 relative z-10 transition-all duration-300">
+            <!-- Brand Logo Header -->
+            <div class="flex flex-col items-center text-center mb-8">
+                <div class="w-14 h-14 bg-gradient-to-tr from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4">
+                    <i class="fa-solid fa-brain text-white text-2xl"></i>
+                </div>
+                <h1 class="font-logo font-bold text-3xl tracking-wider text-slate-900">MAS</h1>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Mental Accounting System</p>
+                <p class="text-xs text-slate-500 mt-2 font-medium" id="auth-sub-msg">대학생을 위한 멘탈 자산 및 정밀 재무관리 시스템</p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form-container" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">이메일 또는 아이디</label>
+                    <div class="relative">
+                        <i class="fa-regular fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="login-id" placeholder="test@univ.ac.kr" class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-sm outline-none focus:bg-white focus:border-blue-500 transition-all font-medium">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">비밀번호</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="password" id="login-pw" placeholder="••••••••" class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-12 py-3.5 text-sm outline-none focus:bg-white focus:border-blue-500 transition-all">
+                        <button type="button" onclick="togglePasswordVisibility('login-pw', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-sm hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/15 mt-2">
+                    대시보드 로그인
+                </button>
+
+                <p class="text-center text-xs text-slate-500 mt-6 font-medium">
+                    아직 계정이 없으신가요? 
+                    <button onclick="toggleAuthForm('signup')" class="text-blue-600 font-bold hover:underline">회원가입 하기</button>
+                </p>
+            </div>
+
+            <!-- Signup Form (Hidden Initially) -->
+            <div id="signup-form-container" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">사용자 이름 (별명)</label>
+                    <div class="relative">
+                        <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="signup-name" placeholder="김지우" class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-sm outline-none focus:bg-white focus:border-blue-500 transition-all font-medium">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">소속 대학 / 전공</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-graduation-cap absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="signup-major" placeholder="경영학 전공 · 3학년" class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-sm outline-none focus:bg-white focus:border-blue-500 transition-all font-medium">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">신규 계정 이메일 아이디</label>
+                    <div class="relative">
+                        <i class="fa-regular fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="signup-id" placeholder="example@univ.ac.kr" class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-sm outline-none focus:bg-white focus:border-blue-500 transition-all font-medium">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">비밀번호 설정</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="password" id="signup-pw" placeholder="8자리 이상 입력" class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-12 py-3.5 text-sm outline-none focus:bg-white focus:border-blue-500 transition-all">
+                        <button type="button" onclick="togglePasswordVisibility('signup-pw', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Avatar Picker -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">프로필 캐릭터 색상</label>
+                    <div class="flex gap-3 justify-center py-1" id="avatar-color-picker">
+                        <button onclick="selectAvatarColor('blue')" class="w-8 h-8 rounded-full bg-blue-500 border-2 ring-2 ring-offset-2 ring-blue-500/50 border-white transition-all"></button>
+                        <button onclick="selectAvatarColor('emerald')" class="w-8 h-8 rounded-full bg-emerald-500 border-2 border-transparent hover:scale-105 transition-all"></button>
+                        <button onclick="selectAvatarColor('purple')" class="w-8 h-8 rounded-full bg-purple-500 border-2 border-transparent hover:scale-105 transition-all"></button>
+                        <button onclick="selectAvatarColor('amber')" class="w-8 h-8 rounded-full bg-amber-500 border-2 border-transparent hover:scale-105 transition-all"></button>
+                        <button onclick="selectAvatarColor('rose')" class="w-8 h-8 rounded-full bg-rose-500 border-2 border-transparent hover:scale-105 transition-all"></button>
+                    </div>
+                </div>
+
+                <button onclick="handleSignup()" class="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl text-sm hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/15 mt-2">
+                    회원가입 및 가동하기
+                </button>
+
+                <p class="text-center text-xs text-slate-500 mt-6 font-medium">
+                    이미 계정이 있으신가요? 
+                    <button onclick="toggleAuthForm('login')" class="text-blue-600 font-bold hover:underline">로그인 하기</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ------------------ VIEW B: MAIN DESKTOP APP (Sidebar & Top Header) ------------------ -->
+    <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between h-full p-6 select-none shrink-0 z-20">
+        <div>
+            <!-- 로고 영역 -->
+            <div class="flex items-center gap-3 mb-10 mt-2">
+                <div class="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-brain text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-logo font-bold text-2xl tracking-wider text-blue-400">MAS</h1>
+                    <span class="text-[10px] text-slate-400 font-medium uppercase tracking-widest block -mt-1">Mental Accounting</span>
+                </div>
+            </div>
+
+            <!-- 네비게이션 메뉴 -->
+            <nav class="space-y-2">
+                <button onclick="switchTab('home')" id="nav-home" class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+                    <i class="fa-solid fa-house text-lg"></i>
+                    <span>홈 대시보드</span>
+                </button>
+                <button onclick="switchTab('analysis')" id="nav-analysis" class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200">
+                    <i class="fa-solid fa-chart-pie text-lg"></i>
+                    <span>종합 분석 자산표</span>
+                </button>
+                <button onclick="switchTab('diary')" id="nav-diary" class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200">
+                    <i class="fa-solid fa-book-open text-lg"></i>
+                    <span>E2EE 일기장</span>
+                </button>
+                <button onclick="triggerToast('info', '학업 및 스터디 모듈은 다음 업데이트에 연동 예정입니다.')" class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200">
+                    <i class="fa-solid fa-graduation-cap text-lg"></i>
+                    <span>학업 및 공부 스터디</span>
+                </button>
+                <button onclick="triggerToast('info', '동아리 및 대외활동 매니저는 차주에 정식 배포됩니다.')" class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200">
+                    <i class="fa-solid fa-people-group text-lg"></i>
+                    <span>동아리 / 대외활동</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- 하단 프로필 및 설정 -->
+        <div class="border-t border-slate-800 pt-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div id="user-avatar-badge" class="w-10 h-10 bg-gradient-to-tr from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow-md uppercase">
+                    U
+                </div>
+                <div>
+                    <p id="user-display-name" class="font-bold text-sm text-white">김지우 (대학생)</p>
+                    <p id="user-display-major" class="text-[11px] text-slate-400">경영학 전공 · 3학년</p>
+                </div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-400 px-1">
+                <button onclick="toggleModal('settingsModal', true)" class="hover:text-white transition-colors"><i class="fa-solid fa-gear mr-1"></i>설정</button>
+                <button onclick="handleLogout()" class="hover:text-rose-400 transition-colors font-semibold"><i class="fa-solid fa-arrow-right-from-bracket mr-1"></i>로그아웃</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-slate-50">
+        
+        <!-- TOP HEADER (검색창 및 노티피케이션) -->
+        <header class="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-8 shrink-0 z-10">
+            <div class="flex items-center bg-slate-100 px-4 py-2.5 rounded-2xl w-96 gap-3">
+                <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                <input type="text" id="global-search" oninput="searchData(this.value)" placeholder="장부 기록, 자격증, 일기 검색..." class="bg-transparent border-none outline-none w-full text-sm placeholder-slate-400">
+            </div>
+            <div class="flex items-center gap-6">
+                <!-- 알림 센터 -->
+                <div class="relative cursor-pointer" onclick="triggerToast('success', '안전 메시지: 이번 주 멘탈 건전성 점수가 지난주 대비 향상되었습니다!')">
+                    <div class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors">
+                        <i class="fa-regular fa-bell text-slate-600 text-lg"></i>
+                    </div>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full"></span>
+                </div>
+                <!-- 접속 상태 마크 -->
+                <div class="flex items-center gap-2.5 bg-slate-100 px-4 py-2 rounded-2xl">
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                    <span class="text-xs font-semibold text-slate-600" id="header-mental-badge">오늘의 멘탈 지수: 우수</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- SUB PAGES WRAPPER -->
+        <div class="flex-1 overflow-y-auto p-8">
+            
+            <!-- ------------------ PAGE 1: 홈 화면 ------------------ -->
+            <div id="page-home" class="tab-transition space-y-6">
+                <!-- 상단 환영 메세지 및 전체 포인트 요약 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 text-white flex flex-col justify-between shadow-xl shadow-blue-500/10 min-h-[180px]">
+                        <div>
+                            <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">Univ Life Asset</span>
+                            <h2 class="text-2xl font-bold mt-3 leading-snug">반가워요, <span id="welcome-user-name" class="text-amber-300 font-extrabold">지우</span>님!<br>대학생활 성장 자본을 탄탄하게 불려볼까요? 🚀</h2>
+                        </div>
+                        <p class="text-xs text-blue-100 mt-2">마지막 성장 자산 갱신: 방금 전</p>
+                    </div>
+
+                    <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-400">현재 누적 가치 포인트</p>
+                                <h3 id="display-total-points" class="text-3xl font-extrabold text-slate-900 mt-2">0 원</h3>
+                            </div>
+                            <div class="w-11 h-11 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500 text-xl shadow-inner animate-bounce">
+                                <i class="fa-solid fa-gem"></i>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl w-fit">
+                            <i class="fa-solid fa-arrow-trend-up"></i>
+                            <span>실시간 설문 연동 가치 적용 중</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 메인 콘텐츠: 장부 입력 & 장부 기록 목록 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- 좌측: 대학생활 자산 목표 설정 및 장부 추가 폼 -->
+                    <div class="lg:col-span-1 space-y-6">
+                        <!-- 목표 설정 위젯 -->
+                        <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                            <h3 class="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-bullseye text-blue-500"></i>
+                                <span>이번 학기 성장 목표 설정</span>
+                            </h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400 mb-1.5">목표 자산 영역</label>
+                                    <select id="goal-category" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:border-blue-500">
+                                        <option value="gpa">학점 자산 (GPA)</option>
+                                        <option value="cert">어학 / 자격증</option>
+                                        <option value="activity">대외활동 / 프로젝트</option>
+                                        <option value="mental">스트레스 관리 (멘탈 해소율)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400 mb-1.5">목표 성취도 점수 (100점 만점)</label>
+                                    <div class="flex items-center gap-3">
+                                        <input type="range" id="goal-range" min="0" max="100" value="85" class="w-full accent-blue-500" oninput="document.getElementById('goal-range-val').innerText = this.value">
+                                        <span class="text-sm font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-lg w-12 text-center" id="goal-range-val">85</span>
+                                    </div>
+                                </div>
+                                <button onclick="saveGoal()" class="w-full bg-slate-900 text-white rounded-2xl py-3 text-sm font-bold hover:bg-blue-600 transition-colors shadow-sm">
+                                    설정 목표 적용하기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 내역 추가 폼 -->
+                        <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                            <h3 class="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-plus-minus text-blue-500"></i>
+                                <span>장부 내역 추가</span>
+                            </h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400 mb-1.5">내역 분류</label>
+                                    <select id="input-category" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:border-blue-500">
+                                        <option value="자격증">자격증 취득 (+자산)</option>
+                                        <option value="학점">학점 및 과제 (+자산)</option>
+                                        <option value="활동">대외활동 / 공모전 (+자산)</option>
+                                        <option value="스트레스">시험 스트레스 (-부채)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400 mb-1.5">세부 내용</label>
+                                    <input type="text" id="input-detail" placeholder="예) 토익 900점 달성, 경영전략 과제 등" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500">
+                                </div>
+                                <button onclick="openEvaluationModal()" class="w-full bg-blue-600 text-white rounded-2xl py-3 text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/15 flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-square-poll-horizontal"></i>
+                                    <span>평가 후 입력하기</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 우측: 장부 기록 리스트 -->
+                    <div class="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-file-invoice-dollar text-slate-400"></i>
+                                    <span>멘탈 장부 기록</span>
+                                </h3>
+                                <!-- 기간 필터 칩스 -->
+                                <div class="flex bg-slate-100 p-1.5 rounded-2xl text-xs font-bold text-slate-500">
+                                    <button onclick="filterRecords('all')" id="filter-all" class="bg-white text-slate-800 px-3 py-1 rounded-xl shadow-sm">전체</button>
+                                    <button onclick="filterRecords('cert')" id="filter-cert" class="px-3 py-1 rounded-xl hover:text-slate-800 transition-colors">자격증</button>
+                                    <button onclick="filterRecords('gpa')" id="filter-gpa" class="px-3 py-1 rounded-xl hover:text-slate-800 transition-colors">학점</button>
+                                    <button onclick="filterRecords('stress')" id="filter-stress" class="px-3 py-1 rounded-xl hover:text-slate-800 transition-colors">스트레스</button>
+                                </div>
+                            </div>
+
+                            <!-- 표 형식 헤더 -->
+                            <div class="grid grid-cols-12 text-xs font-bold text-slate-400 border-b border-slate-100 pb-3 mb-4 px-2">
+                                <div class="col-span-3">날짜</div>
+                                <div class="col-span-5">내용</div>
+                                <div class="col-span-2 text-center">종류</div>
+                                <div class="col-span-2 text-right">정신 회계 가치</div>
+                            </div>
+
+                            <!-- 실시간 추가될 트랜잭션 목록 리스트 -->
+                            <div id="ledger-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                                <!-- JS에서 동적 로드 -->
+                            </div>
+                        </div>
+
+                        <!-- 하단 정산 요약 -->
+                        <div class="border-t border-slate-100 pt-5 mt-6 grid grid-cols-3 gap-4 text-center">
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 mb-1">성장 자산 합계</p>
+                                <span id="summary-profit" class="font-extrabold text-blue-600 text-lg">0 원</span>
+                            </div>
+                            <div class="border-x border-slate-100">
+                                <p class="text-xs font-bold text-slate-400 mb-1">스트레스 부채</p>
+                                <span id="summary-loss" class="font-extrabold text-rose-500 text-lg">0 원</span>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 mb-1">누적 순가치</p>
+                                <span id="summary-net" class="font-extrabold text-slate-900 text-lg">0 원</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ------------------ PAGE 2: 분석화면 ------------------ -->
+            <div id="page-analysis" class="tab-transition space-y-6 hidden">
+                <!-- 상단 KPI 핵심 지표 요약 카드 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center gap-5 hover:scale-[1.02] transition-transform duration-200">
+                        <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-graduation-cap"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400">총 자산 순익</p>
+                            <h4 id="analysis-gpa-val" class="text-xl font-black text-slate-900 mt-1">0 원</h4>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center gap-5 hover:scale-[1.02] transition-transform duration-200">
+                        <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400">총 기록 건수</p>
+                            <h4 id="analysis-asset-count" class="text-xl font-black text-slate-900 mt-1">0 건</h4>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center gap-5 hover:scale-[1.02] transition-transform duration-200 relative group">
+                        <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-heart-pulse"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <p class="text-xs font-bold text-slate-400">학업 및 성장 건전성</p>
+                                <i class="fa-solid fa-circle-info text-slate-300 text-xs cursor-pointer"></i>
+                            </div>
+                            <h4 id="analysis-health-val" class="text-xl font-black text-slate-900 mt-1">100%</h4>
+                        </div>
+                        
+                        <!-- 툴팁 추가 -->
+                        <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 w-64 p-3 bg-slate-900 text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-xl leading-relaxed">
+                            <strong>성장 건전성 지수란?</strong><br>
+                            공식: (순성장 가치 / 총 자산) × 100<br>
+                            부채 스트레스 비율 대비 실질적 성장의 누적 상태를 뜻합니다.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 핵심 그래프 및 목표 대비 피드백 컴포넌트 -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- 그래프 비교 창 -->
+                    <div class="lg:col-span-8 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 class="font-bold text-lg text-slate-900">목표 vs 현재 멘탈 자산 밸런스</h3>
+                                <p class="text-xs text-slate-400">설정한 목표 성취도 대비 실제 획득 자산의 비율 비교</p>
+                            </div>
+                            <div class="flex items-center gap-4 text-xs font-semibold text-slate-500">
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>현재 획득 자산</span>
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 bg-slate-300 rounded-full"></span>설정 목표</span>
+                            </div>
+                        </div>
+
+                        <!-- 커스텀 그래프 영역 -->
+                        <div class="space-y-6 py-4">
+                            <!-- 학점 자산 (GPA) -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm font-bold">
+                                    <span class="text-slate-700"><i class="fa-solid fa-graduation-cap text-blue-500 mr-2"></i>학점 자산 (GPA)</span>
+                                    <span class="text-slate-400">달성 <span id="bar-gpa-actual-txt" class="text-blue-600">0%</span> / <span id="bar-gpa-target-txt">85%</span></span>
+                                </div>
+                                <div class="h-6 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                                    <div id="bar-gpa-target" class="absolute top-0 left-0 h-full bg-slate-300/60 rounded-full" style="width: 85%;"></div>
+                                    <div id="bar-gpa-actual" class="score-bar absolute top-0 left-0 h-full bg-blue-500 rounded-full" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- 어학/자격증 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm font-bold">
+                                    <span class="text-slate-700"><i class="fa-solid fa-certificate text-purple-500 mr-2"></i>어학 / 자격증</span>
+                                    <span class="text-slate-400">달성 <span id="bar-cert-actual-txt" class="text-purple-600">0%</span> / <span id="bar-cert-target-txt">75%</span></span>
+                                </div>
+                                <div class="h-6 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                                    <div id="bar-cert-target" class="absolute top-0 left-0 h-full bg-slate-300/60 rounded-full" style="width: 75%;"></div>
+                                    <div id="bar-cert-actual" class="score-bar absolute top-0 left-0 h-full bg-purple-500 rounded-full" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- 대외활동 / 프로젝트 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm font-bold">
+                                    <span class="text-slate-700"><i class="fa-solid fa-compass text-emerald-500 mr-2"></i>대외활동 / 프로젝트</span>
+                                    <span class="text-slate-400">달성 <span id="bar-activity-actual-txt" class="text-emerald-600">0%</span> / <span id="bar-activity-target-txt">90%</span></span>
+                                </div>
+                                <div class="h-6 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                                    <div id="bar-activity-target" class="absolute top-0 left-0 h-full bg-slate-300/60 rounded-full" style="width: 90%;"></div>
+                                    <div id="bar-activity-actual" class="score-bar absolute top-0 left-0 h-full bg-emerald-500 rounded-full" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- 스트레스 관리 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm font-bold">
+                                    <span class="text-slate-700"><i class="fa-solid fa-face-smile text-amber-500 mr-2"></i>스트레스 관리 해소율</span>
+                                    <span class="text-slate-400">달성 <span id="bar-mental-actual-txt" class="text-amber-600">80%</span> / <span id="bar-mental-target-txt">80%</span></span>
+                                </div>
+                                <div class="h-6 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                                    <div id="bar-mental-target" class="absolute top-0 left-0 h-full bg-slate-300/60 rounded-full" style="width: 80%;"></div>
+                                    <div id="bar-mental-actual" class="score-bar absolute top-0 left-0 h-full bg-amber-500 rounded-full" style="width: 80%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI 실시간 피드백 창 -->
+                    <div class="lg:col-span-4 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-3xl p-6 text-white shadow-xl shadow-indigo-950/10 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-3 mb-5">
+                                <div class="w-10 h-10 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 text-lg border border-indigo-500/30">
+                                    <i class="fa-solid fa-robot animate-pulse"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-md text-white">MAS AI 대학생활 멘토</h3>
+                                    <span class="text-[10px] text-indigo-300 font-semibold uppercase tracking-wider">실시간 전공 맞춤형 분석</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-indigo-950/50 border border-indigo-800/30 rounded-2xl p-4 space-y-4">
+                                <p id="ai-feedback-msg" class="text-xs font-medium text-indigo-100 leading-relaxed">
+                                    현재 분석 데이터가 수신 대기 중입니다.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="pt-6 border-t border-indigo-800/20 mt-6 flex gap-2">
+                            <button onclick="switchTab('home')" class="flex-1 bg-indigo-600/30 text-indigo-200 border border-indigo-600/50 rounded-2xl py-2.5 text-xs font-bold hover:bg-indigo-600/50 transition-colors">
+                                <i class="fa-solid fa-circle-plus mr-1"></i> 자산 추가입력
+                            </button>
+                            <button onclick="switchTab('diary')" class="flex-1 bg-white text-slate-900 rounded-2xl py-2.5 text-xs font-bold hover:bg-slate-100 transition-colors">
+                                번아웃 일기 작성
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 재무상태표 (Statement of Financial Position) - 정교한 다이내믹 클리어 포맷 구현 -->
+                <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-table text-indigo-500"></i>
+                                <span>정밀 감사 재무상태표 (Dynamic Mapping)</span>
+                            </h3>
+                            <p class="text-xs text-slate-400">입력하신 자산 내역과 부채 항목의 실존 명세들로만 100% 채워지는 유동성 정밀 회계 테이블입니다.</p>
+                        </div>
+                        <span class="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-xl">단위: 원</span>
+                    </div>
+
+                    <!-- 이중 분할 다이내믹 테이블 -->
+                    <div class="overflow-x-auto border border-slate-100 rounded-2xl">
+                        <table class="w-full text-left border-collapse bs-table">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-700 font-bold text-xs">
+                                    <th class="w-[30%] py-3">계 정 과 목 (자 산)</th>
+                                    <th class="w-[20%] py-3 text-right">금 액</th>
+                                    <th class="w-[30%] py-3">계 정 과 목 (부 채)</th>
+                                    <th class="w-[20%] py-3 text-right">금 액</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dynamic-bs-body" class="text-slate-600 text-[11px]">
+                                <!-- JS에서 dynamic-mapping으로 직접 그립니다. -->
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-indigo-50/50 font-extrabold text-sm border-t border-slate-200">
+                                    <td class="py-3 text-slate-900 font-bold">자 산 총 계</td>
+                                    <td class="text-right text-indigo-700 font-bold" id="bs-total-assets">0 원</td>
+                                    <td class="py-3 text-slate-900 font-bold">부 채 총 계</td>
+                                    <td class="text-right text-rose-600 font-bold" id="bs-total-liabilities">0 원</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ------------------ PAGE 3: 일기장 화면 ------------------ -->
+            <div id="page-diary" class="tab-transition space-y-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
+                    
+                    <!-- 좌측: 마음 일기 작성 영역 -->
+                    <div class="lg:col-span-8 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-pen-nib text-indigo-500 animate-pulse"></i>
+                                    <span>오늘의 마음 일기</span>
+                                </h3>
+                                <span class="text-xs bg-slate-100 text-slate-500 px-3 py-1.5 rounded-xl font-medium" id="live-time"></span>
+                            </div>
+
+                            <!-- 암호화 가동 배지 (동적 스타일링) -->
+                            <div class="bg-indigo-50 text-indigo-700 px-4 py-3 rounded-2xl flex items-center gap-3 border border-indigo-100 mb-5 text-sm">
+                                <div class="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-ping"></div>
+                                <i class="fa-solid fa-shield-halved text-indigo-500"></i>
+                                <span class="font-semibold">현재 안전한 <strong class="text-indigo-900 font-black">종단간 암호화(E2EE)</strong> 모듈이 백그라운드에서 실시간 가동 중입니다.</span>
+                            </div>
+
+                            <!-- 일기 폼 -->
+                            <div class="space-y-4">
+                                <input type="text" id="diary-title" placeholder="일기 제목을 입력해 주세요..." class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:border-indigo-500 placeholder-slate-400">
+                                <textarea id="diary-content" rows="9" placeholder="오늘 겪었던 번아웃 요인, 스트레스, 혹은 뿌듯한 성취 경험을 적어보세요..." class="w-full bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 placeholder-slate-400 resize-none"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- 보안 비밀키 입력 및 보관 버튼 -->
+                        <div class="flex gap-4 items-center border-t border-slate-100 pt-5 mt-4">
+                            <div class="flex-1 relative">
+                                <i class="fa-solid fa-key absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="password" id="diary-secret-key" placeholder="안전 암호화 비밀키 입력 (보관함 조회 시 필수)" class="w-full bg-slate-100 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:bg-white focus:border-indigo-500">
+                            </div>
+                            <button onclick="saveDiary()" class="bg-indigo-600 text-white rounded-2xl px-8 py-3 text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/15">
+                                <i class="fa-solid fa-lock mr-2"></i> 암호화 저장하기
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 우측: 안전 기록 보관함 리스트 -->
+                    <div class="lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between overflow-hidden">
+                        <div class="flex flex-col h-full overflow-hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-vault text-slate-400"></i>
+                                    <span>비공개 기록 보관함</span>
+                                </h3>
+                                <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">보안 잠금</span>
+                            </div>
+
+                            <!-- 보관함 일기 리스트 -->
+                            <div id="diary-list" class="flex-1 space-y-3 overflow-y-auto pr-1">
+                                <!-- JS에서 동적 로드 -->
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- 인터랙티브 스크립트 기능 -->
+    <script>
+        // 전역 회원 및 앱 데이터 상태 (로그인 계정에 맞춰 독립 분리 저장)
+        let state = {
+            activeUser: null,
+            totalPoints: 0,
+            profitSum: 0,
+            lossSum: 0,
+            gpaTarget: 85,
+            gpaActual: 0,
+            certTarget: 75,
+            certActual: 0,
+            activityTarget: 90,
+            activityActual: 0,
+            mentalTarget: 80,
+            mentalActual: 80,
+            transactions: [],
+            diaries: [],
+            activeFilter: 'all',
+            avatarColor: 'blue'
+        };
+
+        // 기본 체험용 대기 트랜잭션 템플릿
+        const defaultTransactions = [
+            { date: '2026.05.28', detail: '경영통계학 과제 완료 및 제출', category: '학점', amount: 150450 },
+            { date: '2026.05.19', detail: '컴퓨터활용능력 1급 최종 합격!', category: '자격증', amount: 200600 },
+            { date: '2026.05.12', detail: '전공 과목 조별과제 불화 스트레스 부하', category: '스트레스', amount: -50150 }
+        ];
+
+        // 기본 일기 템플릿
+        const defaultDiaries = [
+            {
+                id: 1,
+                date: '2026.05.28',
+                title: 'U2FsdGVkX19D7a3m9F6fA==', // '기말고사 부담감' 암호화 더미
+                content: 'U2FsdGVkX19+9wH7V9FwGvWp8e6fQ==', // '진짜 너무 졸립고 지친다' 암호화 더미
+                isEncrypted: true
+            }
+        ];
+
+        // ------------------ TOAST SYSTEM ------------------
+        function triggerToast(type, message) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'animate-toast pointer-events-auto flex items-center gap-3 p-4 rounded-2xl shadow-xl border bg-white text-slate-800 border-slate-100 text-xs font-semibold';
+            
+            let iconHtml = '';
+            if (type === 'success') {
+                iconHtml = `<div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center text-[10px]"><i class="fa-solid fa-check"></i></div>`;
+            } else if (type === 'error') {
+                iconHtml = `<div class="w-6 h-6 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center text-[10px]"><i class="fa-solid fa-xmark"></i></div>`;
+            } else {
+                iconHtml = `<div class="w-6 h-6 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-[10px]"><i class="fa-solid fa-info"></i></div>`;
+            }
+
+            toast.innerHTML = `
+                ${iconHtml}
+                <span class="flex-1">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // ------------------ CONFIRM DIALOG SYSTEM ------------------
+        function showConfirmModal(title, msg, onOk) {
+            const modal = document.getElementById('confirm-modal');
+            const titleEl = document.getElementById('confirm-title');
+            const messageEl = document.getElementById('confirm-message');
+            const okBtn = document.getElementById('confirm-ok-btn');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+            titleEl.textContent = title;
+            messageEl.textContent = msg;
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('opacity-100'), 10);
+
+            const handleCancel = () => {
+                modal.classList.remove('opacity-100');
+                setTimeout(() => modal.classList.add('hidden'), 200);
+            };
+
+            cancelBtn.onclick = handleCancel;
+            okBtn.onclick = () => {
+                onOk();
+                handleCancel();
+            };
+        }
+
+        // ------------------ EVALUATION MODALS EVENT LOGICS ------------------
+        let tempDetail = '';
+        let tempCategory = '';
+
+        function toggleModal(modalId, isShow) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            if (isShow) {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.add('opacity-100'), 10);
+            } else {
+                modal.classList.remove('opacity-100');
+                setTimeout(() => modal.classList.add('hidden'), 200);
+                // 모달 닫힐 시 가이드 가림막 초기화
+                const guidePanel = document.getElementById('cert-guide-panel');
+                if (guidePanel) {
+                    guidePanel.style.maxHeight = '0px';
+                    guidePanel.classList.add('mb-0');
+                    guidePanel.classList.remove('mb-4');
+                    const icon = document.getElementById('cert-guide-icon');
+                    if (icon) icon.className = "fa-solid fa-circle-info text-lg text-slate-400";
+                }
+            }
+        }
+
+        // 자격증 등급 지침 펼침/접힘 제어 함수
+        function toggleCertGuide() {
+            const panel = document.getElementById('cert-guide-panel');
+            const icon = document.getElementById('cert-guide-icon');
+            if (!panel || !icon) return;
+
+            if (panel.style.maxHeight === '0px' || !panel.style.maxHeight || panel.style.maxHeight === '') {
+                panel.style.maxHeight = panel.scrollHeight + 'px';
+                panel.classList.remove('mb-0');
+                panel.classList.add('mb-4');
+                icon.className = "fa-solid fa-circle-info text-lg text-blue-600 rotate-180";
+            } else {
+                panel.style.maxHeight = '0px';
+                panel.classList.remove('mb-4');
+                panel.classList.add('mb-0');
+                icon.className = "fa-solid fa-circle-info text-lg text-slate-400";
+            }
+        }
+
+        function openEvaluationModal() {
+            const category = document.getElementById('input-category').value;
+            const detail = document.getElementById('input-detail').value.trim();
+
+            if (!detail) {
+                triggerToast('error', '자산이나 부채의 세부 내용을 정확하게 적어주세요!');
+                return;
+            }
+
+            tempDetail = detail;
+            tempCategory = category;
+
+            if (category === '자격증') {
+                toggleModal('certModal', true);
+            } else if (category === '학점') {
+                updateGradePreview();
+                toggleModal('gradeModal', true);
+            } else if (category === '활동') {
+                document.getElementById('activityTime').value = '';
+                document.getElementById('hasPrize').checked = false;
+                document.getElementById('prizeAmount').value = '';
+                document.getElementById('prizeInputGroup').classList.add('hidden');
+                toggleModal('activityModal', true);
+            } else if (category === '스트레스') {
+                updateStressPreview();
+                toggleModal('stressModal', true);
+            }
+        }
+
+        // Grade value preview synchronization
+        function updateGradePreview() {
+            const mult = parseInt(document.getElementById('gradeSelect').value);
+            const amt = mult * 10030;
+            document.getElementById('gradeResultPreview').innerText = `예상 자산 가치: ${amt.toLocaleString()} 원`;
+        }
+
+        // Stress value preview synchronization
+        function updateStressPreview() {
+            const scale = parseInt(document.getElementById('stressSelect').value);
+            const amt = scale * -10030;
+            document.getElementById('stressResultPreview').innerText = `예상 부채 가치: ${amt.toLocaleString()} 원`;
+        }
+
+        // Toggle Prize Input in Activity modal
+        function togglePrizeInput() {
+            const hasPrize = document.getElementById('hasPrize').checked;
+            const group = document.getElementById('prizeInputGroup');
+            if (hasPrize) {
+                group.classList.remove('hidden');
+            } else {
+                group.classList.add('hidden');
+            }
+        }
+
+        // Q1, Q2, Q3 등급에 기반한 자격증 멘탈 가치 측정 및 등록
+        document.getElementById('certSubmitBtn').onclick = function() {
+            const q1 = parseInt(document.getElementById('q1').value);
+            const q2 = parseInt(document.getElementById('q2').value);
+            const q3 = parseInt(document.getElementById('q3').value);
+
+            const scoreSum = q1 + q2 + q3;
+            // 가치 산출 수식: (공부량 x 20,000) + (포기시간 x 15,000) + (공격력 x 30,000)
+            const evaluatedAmt = (q1 * 20000) + (q2 * 15000) + (q3 * 30000);
+
+            saveEvaluatedTransaction(tempCategory, tempDetail, evaluatedAmt);
+            toggleModal('certModal', false);
+            triggerToast('success', `자격증 가치 평가 완료! ${evaluatedAmt.toLocaleString()}원이 장부에 신규 가산되었습니다.`);
+        };
+
+        document.getElementById('certCancelBtn').onclick = function() {
+            toggleModal('certModal', false);
+        };
+
+        // 학점 자산 등급별 가치 산출 및 등록
+        document.getElementById('gradeSubmitBtn').onclick = function() {
+            const val = parseInt(document.getElementById('gradeSelect').value);
+            const evaluatedAmt = val * 10030;
+
+            saveEvaluatedTransaction(tempCategory, tempDetail, evaluatedAmt);
+            toggleModal('gradeModal', false);
+            triggerToast('success', `학점 가치 산출 완료! ${evaluatedAmt.toLocaleString()}원이 장부에 반영되었습니다.`);
+        };
+
+        document.getElementById('gradeCancelBtn').onclick = function() {
+            toggleModal('gradeModal', false);
+        };
+
+        // 대외활동 자산 시간/상금 연산 및 등록
+        document.getElementById('activitySubmitBtn').onclick = function() {
+            const timeVal = parseInt(document.getElementById('activityTime').value) || 0;
+            const hasPrize = document.getElementById('hasPrize').checked;
+            const prizeVal = hasPrize ? (parseInt(document.getElementById('prizeAmount').value) || 0) : 0;
+
+            if (timeVal <= 0) {
+                triggerToast('error', '소요된 자원(시간)을 올바르게 기입해 주세요!');
+                return;
+            }
+
+            // 가치 수식: 시간당 10,030원 책정 + 추가 수혜 상금
+            const evaluatedAmt = (timeVal * 10030) + prizeVal;
+
+            saveEvaluatedTransaction(tempCategory, tempDetail, evaluatedAmt);
+            toggleModal('activityModal', false);
+            triggerToast('success', `활동 자산 계상 완료! ${evaluatedAmt.toLocaleString()}원이 정상 등록되었습니다.`);
+        };
+
+        document.getElementById('activityCancelBtn').onclick = function() {
+            toggleModal('activityModal', false);
+        };
+
+        // 스트레스 감가상각 가치 산출 및 부채 등록
+        document.getElementById('stressSubmitBtn').onclick = function() {
+            const scale = parseInt(document.getElementById('stressSelect').value);
+            const evaluatedAmt = scale * -10030;
+
+            saveEvaluatedTransaction(tempCategory, tempDetail, evaluatedAmt);
+            toggleModal('stressModal', false);
+            triggerToast('success', `감정 스트레스 부채 등록 완료: ${evaluatedAmt.toLocaleString()} 원`);
+        };
+
+        document.getElementById('stressCancelBtn').onclick = function() {
+            toggleModal('stressModal', false);
+        };
+
+        // 공통 가치 평가 트랜잭션 수속
+        function saveEvaluatedTransaction(category, detail, amount) {
+            const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+            const newTx = { date: todayStr, detail: detail, category: category, amount: amount };
+            state.transactions.unshift(newTx);
+
+            // 실시간 멘탈 밸런스 달성률 상향 기여도 변동
+            if (category === '학점') {
+                state.gpaActual = Math.min(100, state.gpaActual + 8);
+            } else if (category === '자격증') {
+                state.certActual = Math.min(100, state.certActual + 12);
+            } else if (category === '활동') {
+                state.activityActual = Math.min(100, state.activityActual + 10);
+            } else if (category === '스트레스') {
+                state.mentalActual = Math.max(10, state.mentalActual - 15);
+            }
+
+            recalcSums();
+            syncLocalStorage();
+            updateUI();
+
+            // 입력 상자 원위치 초기화
+            document.getElementById('input-detail').value = '';
+        }
+
+        // ------------------ SYSTEM UTILS & AUTH CONTROLLERS ------------------
+        function togglePasswordVisibility(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            if (!input) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+            } else {
+                input.type = 'password';
+                btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+            }
+        }
+
+        function toggleAuthForm(mode) {
+            const loginForm = document.getElementById('login-form-container');
+            const signupForm = document.getElementById('signup-form-container');
+            const subMsg = document.getElementById('auth-sub-msg');
+
+            if (mode === 'signup') {
+                loginForm.classList.add('hidden');
+                signupForm.classList.remove('hidden');
+                subMsg.textContent = '반가워요! 신규 자산 장부 계정을 만드세요.';
+            } else {
+                loginForm.classList.remove('hidden');
+                signupForm.classList.add('hidden');
+                subMsg.textContent = '대학생을 위한 멘탈 자산 및 정밀 재무관리 시스템';
+            }
+        }
+
+        function selectAvatarColor(color) {
+            state.avatarColor = color;
+            const container = document.getElementById('avatar-color-picker');
+            const buttons = container.querySelectorAll('button');
+            const colors = {
+                blue: 'bg-blue-500',
+                emerald: 'bg-emerald-500',
+                purple: 'bg-purple-500',
+                amber: 'bg-amber-500',
+                rose: 'bg-rose-500'
+            };
+
+            buttons.forEach(btn => {
+                btn.className = btn.className.replace(/ring-2.*/, 'border-transparent');
+            });
+
+            const index = Object.keys(colors).indexOf(color);
+            if (index !== -1) {
+                buttons[index].className = `${colors[color]} w-8 h-8 rounded-full border-2 ring-2 ring-offset-2 ring-${color}-500/50 border-white transition-all`;
+            }
+        }
+
+        function handleSignup() {
+            const name = document.getElementById('signup-name').value.trim();
+            const major = document.getElementById('signup-major').value.trim();
+            const id = document.getElementById('signup-id').value.trim();
+            const pw = document.getElementById('signup-pw').value.trim();
+
+            if (!name || !major || !id || !pw) {
+                triggerToast('error', '모든 필수 회원 양식을 기입해 주세요.');
+                return;
+            }
+
+            if (pw.length < 8) {
+                triggerToast('error', '보안 비밀번호는 8자 이상 요구됩니다.');
+                return;
+            }
+
+            const existingUsers = JSON.parse(localStorage.getItem('mas_users_list') || '{}');
+            if (existingUsers[id]) {
+                triggerToast('error', '이미 중복 등록된 회원 아이디입니다.');
+                return;
+            }
+
+            existingUsers[id] = { name, major, pw, color: state.avatarColor };
+            localStorage.setItem('mas_users_list', JSON.stringify(existingUsers));
+
+            const newUserState = {
+                activeUser: id,
+                totalPoints: 300900,
+                profitSum: 351050,
+                lossSum: -50150,
+                gpaTarget: 85,
+                gpaActual: 45,
+                certTarget: 75,
+                certActual: 60,
+                activityTarget: 90,
+                activityActual: 30,
+                mentalTarget: 80,
+                mentalActual: 80,
+                transactions: [...defaultTransactions],
+                diaries: [...defaultDiaries],
+                activeFilter: 'all',
+                avatarColor: state.avatarColor
+            };
+
+            localStorage.setItem(`mas_state_${id}`, JSON.stringify(newUserState));
+            triggerToast('success', '성공적으로 가입되었습니다! 로그인 해주세요.');
+            toggleAuthForm('login');
+        }
+
+        function handleLogin() {
+            const id = document.getElementById('login-id').value.trim();
+            const pw = document.getElementById('login-pw').value.trim();
+
+            if (!id || !pw) {
+                triggerToast('error', '로그인 자격 증명을 올바르게 입력해주세요.');
+                return;
+            }
+
+            const existingUsers = JSON.parse(localStorage.getItem('mas_users_list') || '{}');
+            
+            if (id === 'test' || id === 'test@univ.ac.kr') {
+                if (!existingUsers[id]) {
+                    existingUsers[id] = { name: '김지우', major: '경영학 전공 · 3학년', pw: 'test', color: 'blue' };
+                    localStorage.setItem('mas_users_list', JSON.stringify(existingUsers));
+                }
+            }
+
+            const userObj = existingUsers[id];
+            if (!userObj || userObj.pw !== pw) {
+                triggerToast('error', '등록되지 않은 회원이거나 비밀번호가 다릅니다.');
+                return;
+            }
+
+            let loadedState = localStorage.getItem(`mas_state_${id}`);
+            if (loadedState) {
+                try {
+                    state = JSON.parse(loadedState);
+                } catch(e) {
+                    console.log('Error parsing state logs');
+                }
+            } else {
+                state = {
+                    activeUser: id,
+                    totalPoints: 300900,
+                    profitSum: 351050,
+                    lossSum: -50150,
+                    gpaTarget: 85,
+                    gpaActual: 45,
+                    certTarget: 75,
+                    certActual: 60,
+                    activityTarget: 90,
+                    activityActual: 30,
+                    mentalTarget: 80,
+                    mentalActual: 80,
+                    transactions: [...defaultTransactions],
+                    diaries: [...defaultDiaries],
+                    activeFilter: 'all',
+                    avatarColor: userObj.color || 'blue'
+                };
+                localStorage.setItem(`mas_state_${id}`, JSON.stringify(state));
+            }
+
+            state.activeUser = id;
+            localStorage.setItem('mas_current_user', id);
+
+            const authScreen = document.getElementById('auth-screen');
+            authScreen.classList.add('opacity-0', 'pointer-events-none', 'transition-opacity', 'duration-500');
+            
+            updateUI();
+            triggerToast('success', `${userObj.name}님, 금융 포털 보안 세션 가동 완료!`);
+        }
+
+        window.onload = function() {
+            const currentUser = localStorage.getItem('mas_current_user');
+            const authScreen = document.getElementById('auth-screen');
+
+            if (currentUser) {
+                const existingUsers = JSON.parse(localStorage.getItem('mas_users_list') || '{}');
+                if (existingUsers[currentUser]) {
+                    let loadedState = localStorage.getItem(`mas_state_${currentUser}`);
+                    if (loadedState) {
+                        try {
+                            state = JSON.parse(loadedState);
+                        } catch(e) {}
+                    }
+                    authScreen.classList.add('hidden', 'opacity-0', 'pointer-events-none');
+                    updateUI();
+                } else {
+                    authScreen.classList.remove('hidden');
+                }
+            } else {
+                authScreen.classList.remove('hidden');
+            }
+            
+            setInterval(() => {
+                const now = new Date();
+                const timeEl = document.getElementById('live-time');
+                if (timeEl) timeEl.innerText = now.toLocaleString('ko-KR');
+            }, 1000);
+        };
+
+        function handleLogout() {
+            showConfirmModal('대시보드 로그아웃', '안전하게 로그아웃하시겠습니까? 현재까지의 개인 장부 가치가 클라우드에 백업 유지됩니다.', () => {
+                localStorage.removeItem('mas_current_user');
+                state.activeUser = null;
+
+                const authScreen = document.getElementById('auth-screen');
+                authScreen.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+                
+                document.getElementById('login-id').value = '';
+                document.getElementById('login-pw').value = '';
+                
+                triggerToast('success', '보안 연결 세션이 완전히 폐기되었습니다.');
+            });
+        }
+
+        function syncLocalStorage() {
+            if (state.activeUser) {
+                localStorage.setItem(`mas_state_${state.activeUser}`, JSON.stringify(state));
+            }
+        }
+
+        function switchTab(tab) {
+            const homePage = document.getElementById('page-home');
+            const analysisPage = document.getElementById('page-analysis');
+            const diaryPage = document.getElementById('page-diary');
+            
+            const navHome = document.getElementById('nav-home');
+            const navAnalysis = document.getElementById('nav-analysis');
+            const navDiary = document.getElementById('nav-diary');
+
+            homePage.classList.add('hidden');
+            analysisPage.classList.add('hidden');
+            diaryPage.classList.add('hidden');
+
+            navHome.className = "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200";
+            navAnalysis.className = "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200";
+            navDiary.className = "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-200";
+
+            if (tab === 'home') {
+                homePage.classList.remove('hidden');
+                navHome.className = "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-600/20";
+            } else if (tab === 'analysis') {
+                analysisPage.classList.remove('hidden');
+                navAnalysis.className = "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-600/20";
+            } else if (tab === 'diary') {
+                diaryPage.classList.remove('hidden');
+                navDiary.className = "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left font-medium transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-600/20";
+            }
+        }
+
+        // ------------------ BACKUP SYSTEM Logics ------------------
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `MAS_Backup_${state.activeUser || 'user'}.json`);
+            dlAnchorElem.click();
+            triggerToast('success', '로컬 성장 지표가 JSON 백업본으로 정상 출고되었습니다.');
+        }
+
+        function triggerImport() {
+            document.getElementById('importFile').click();
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.transactions && parsed.diaries) {
+                        state = { ...state, ...parsed };
+                        syncLocalStorage();
+                        updateUI();
+                        triggerToast('success', 'JSON 백업 명세가 정상 수입 및 복구되었습니다.');
+                        toggleModal('settingsModal', false);
+                    } else {
+                        triggerToast('error', '유효하지 않은 장부 규격 백업 파일입니다.');
+                    }
+                } catch(err) {
+                    triggerToast('error', '파일 파싱 오류: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ------------------ CALCULATION LOGICS ------------------
+        function saveGoal() {
+            const category = document.getElementById('goal-category').value;
+            const targetVal = parseInt(document.getElementById('goal-range').value);
+
+            if (category === 'gpa') state.gpaTarget = targetVal;
+            else if (category === 'cert') state.certTarget = targetVal;
+            else if (category === 'activity') state.activityTarget = targetVal;
+            else if (category === 'mental') state.mentalTarget = targetVal;
+
+            syncLocalStorage();
+            updateUI();
+            triggerToast('success', '학기 성취 성장 목표치가 갱신 및 고정되었습니다.');
+        }
+
+        function recalcSums() {
+            let profit = 0;
+            let loss = 0;
+            state.transactions.forEach(tx => {
+                if (tx.amount > 0) {
+                    profit += tx.amount;
+                } else {
+                    loss += tx.amount;
+                }
+            });
+            state.profitSum = profit;
+            state.lossSum = loss;
+            state.totalPoints = profit + loss;
+        }
+
+        // 감정 일기장 처리 (E2EE 암호화 및 보상 체계)
+        function saveDiary() {
+            const titleInput = document.getElementById('diary-title').value.trim();
+            const contentInput = document.getElementById('diary-content').value.trim();
+            const secretKey = document.getElementById('diary-secret-key').value.trim();
+
+            if (!titleInput || !contentInput || !secretKey) {
+                triggerToast('error', '보안을 위해 비밀키를 포함한 모든 본문을 작성해야 종단 암호화 봉인이 승인됩니다.');
+                return;
+            }
+
+            try {
+                const encryptedTitle = CryptoJS.AES.encrypt(titleInput, secretKey).toString();
+                const encryptedContent = CryptoJS.AES.encrypt(contentInput, secretKey).toString();
+
+                const newDiary = {
+                    id: Date.now(),
+                    date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+                    title: encryptedTitle,
+                    content: encryptedContent,
+                    isEncrypted: true
+                };
+
+                state.diaries.unshift(newDiary);
+                
+                // 멘탈 게이지 가중 및 보너스 보상 지급
+                state.mentalActual = Math.min(100, state.mentalActual + 8);
+                state.transactions.unshift({
+                    date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+                    detail: 'E2EE 감정 일기 작성 치유 보너스',
+                    category: '활동',
+                    amount: 5000
+                });
+                
+                recalcSums();
+                syncLocalStorage();
+                updateUI();
+
+                document.getElementById('diary-title').value = '';
+                document.getElementById('diary-content').value = '';
+                document.getElementById('diary-secret-key').value = '';
+
+                triggerToast('success', '보안 캡슐에 안전히 영구 암호 보호 봉인 조치되었습니다.');
+            } catch(err) {
+                triggerToast('error', '보안 암호화 중 치명적 결함: ' + err.message);
+            }
+        }
+
+        function decryptDiary(id) {
+            const key = prompt('비밀 기록 보관함 암호 해제를 위한 비밀키를 입력하세요:');
+            if (!key) return;
+
+            const diaryItem = state.diaries.find(d => d.id === id);
+            if (!diaryItem) return;
+
+            try {
+                const decryptedTitleBytes = CryptoJS.AES.decrypt(diaryItem.title, key);
+                const decryptedTitle = decryptedTitleBytes.toString(CryptoJS.enc.Utf8);
+
+                const decryptedContentBytes = CryptoJS.AES.decrypt(diaryItem.content, key);
+                const decryptedContent = decryptedContentBytes.toString(CryptoJS.enc.Utf8);
+
+                if (!decryptedTitle || !decryptedContent) {
+                    triggerToast('error', '올바른 개인 일기 비밀키가 아닙니다. E2EE 검증 실패.');
+                    return;
+                }
+
+                triggerToast('success', '🔓 암호 팩토리 해독 성공! 내용을 기밀 해제했습니다.');
+                alert(`🔓 복호화 완료 [${diaryItem.date}]\n\n제목: ${decryptedTitle}\n\n내용: ${decryptedContent}`);
+            } catch (e) {
+                triggerToast('error', '복호화 프로토콜 오류. 비밀키 손상 또는 변조가 관찰됩니다.');
+            }
+        }
+
+        function deleteDiary(id) {
+            showConfirmModal('정서 일기 완전 파기', '이 소중한 감정 일기를 완전하고 영구히 삭제하시겠습니까? 보안 규칙에 의해 절대 복원할 수 없습니다.', () => {
+                state.diaries = state.diaries.filter(d => d.id !== id);
+                syncLocalStorage();
+                updateUI();
+                triggerToast('success', '일기가 완전히 영구 삭제 처리되었습니다.');
+            });
+        }
+
+        function filterRecords(type) {
+            state.activeFilter = type;
+            document.getElementById('filter-all').className = "px-3 py-1 rounded-xl hover:text-slate-800 transition-colors";
+            document.getElementById('filter-cert').className = "px-3 py-1 rounded-xl hover:text-slate-800 transition-colors";
+            document.getElementById('filter-gpa').className = "px-3 py-1 rounded-xl hover:text-slate-800 transition-colors";
+            document.getElementById('filter-stress').className = "px-3 py-1 rounded-xl hover:text-slate-800 transition-colors";
+
+            if (type === 'all') {
+                document.getElementById('filter-all').className = "bg-white text-slate-800 px-3 py-1 rounded-xl shadow-sm";
+            } else if (type === 'cert') {
+                document.getElementById('filter-cert').className = "bg-white text-slate-800 px-3 py-1 rounded-xl shadow-sm";
+            } else if (type === 'gpa') {
+                document.getElementById('filter-gpa').className = "bg-white text-slate-800 px-3 py-1 rounded-xl shadow-sm";
+            } else if (type === 'stress') {
+                document.getElementById('filter-stress').className = "bg-white text-slate-800 px-3 py-1 rounded-xl shadow-sm";
+            }
+
+            renderLedger();
+        }
+
+        function searchData(keyword) {
+            keyword = keyword.toLowerCase().trim();
+            renderLedger(keyword);
+        }
+
+        // ------------------ DYNAMIC USER INTERFACE RENDERING ------------------
+        function updateUI() {
+            if (!state.activeUser) return;
+
+            const existingUsers = JSON.parse(localStorage.getItem('mas_users_list') || '{}');
+            const currentUserObj = existingUsers[state.activeUser] || { name: '지우', major: '경영학 전공', color: 'blue' };
+
+            document.getElementById('welcome-user-name').innerText = currentUserObj.name;
+            document.getElementById('user-display-name').innerText = `${currentUserObj.name} (대학생)`;
+            document.getElementById('user-display-major').innerText = currentUserObj.major;
+
+            const avatarColors = {
+                blue: 'from-blue-500 to-indigo-600',
+                emerald: 'from-emerald-400 to-teal-600',
+                purple: 'from-purple-500 to-indigo-700',
+                amber: 'from-amber-400 to-orange-500',
+                rose: 'from-rose-400 to-red-600'
+            };
+            const activeColorClass = avatarColors[currentUserObj.color] || avatarColors['blue'];
+            const avatarBadge = document.getElementById('user-avatar-badge');
+            avatarBadge.className = `w-10 h-10 bg-gradient-to-tr ${activeColorClass} rounded-full flex items-center justify-center text-white font-bold shadow-md uppercase`;
+            avatarBadge.innerText = currentUserObj.name.charAt(0);
+
+            // 핵심 수치 동기화
+            const formattedTotal = state.totalPoints.toLocaleString() + ' 원';
+            document.getElementById('display-total-points').innerText = formattedTotal;
+            document.getElementById('summary-profit').innerText = state.profitSum.toLocaleString() + ' 원';
+            document.getElementById('summary-loss').innerText = Math.abs(state.lossSum).toLocaleString() + ' 원';
+            document.getElementById('summary-net').innerText = formattedTotal;
+
+            // 멘탈 게이지 요약 연동
+            const mentalRate = state.mentalActual;
+            const healthBadge = document.getElementById('header-mental-badge');
+            if (mentalRate < 45) {
+                healthBadge.className = "text-xs font-semibold text-rose-600";
+                healthBadge.innerHTML = `<span class="w-2 h-2 bg-rose-500 rounded-full inline-block mr-1"></span>오늘의 멘탈 지수: 피로 누적`;
+            } else if (mentalRate < 70) {
+                healthBadge.className = "text-xs font-semibold text-amber-600";
+                healthBadge.innerHTML = `<span class="w-2 h-2 bg-amber-500 rounded-full inline-block mr-1"></span>오늘의 멘탈 지수: 보통`;
+            } else {
+                healthBadge.className = "text-xs font-semibold text-emerald-600";
+                healthBadge.innerHTML = `<span class="w-2 h-2 bg-emerald-500 rounded-full inline-block mr-1"></span>오늘의 멘탈 지수: 우수`;
+            }
+
+            renderLedger();
+
+            // 목표 대비 진행률 연동
+            document.getElementById('bar-gpa-actual').style.width = state.gpaActual + '%';
+            document.getElementById('bar-gpa-actual-txt').innerText = state.gpaActual + '%';
+            document.getElementById('bar-gpa-target').style.width = state.gpaTarget + '%';
+            document.getElementById('bar-gpa-target-txt').innerText = state.gpaTarget + '%';
+
+            document.getElementById('bar-cert-actual').style.width = state.certActual + '%';
+            document.getElementById('bar-cert-actual-txt').innerText = state.certActual + '%';
+            document.getElementById('bar-cert-target').style.width = state.certTarget + '%';
+            document.getElementById('bar-cert-target-txt').innerText = state.certTarget + '%';
+
+            document.getElementById('bar-activity-actual').style.width = state.activityActual + '%';
+            document.getElementById('bar-activity-actual-txt').innerText = state.activityActual + '%';
+            document.getElementById('bar-activity-target').style.width = state.activityTarget + '%';
+            document.getElementById('bar-activity-target-txt').innerText = state.activityTarget + '%';
+
+            document.getElementById('bar-mental-actual').style.width = state.mentalActual + '%';
+            document.getElementById('bar-mental-actual-txt').innerText = state.mentalActual + '%';
+            document.getElementById('bar-mental-target').style.width = state.mentalTarget + '%';
+            document.getElementById('bar-mental-target-txt').innerText = state.mentalTarget + '%';
+
+            // 건강 점수 산출
+            const totalAssetsTemp = state.profitSum;
+            const healthPercentage = totalAssetsTemp > 0 ? Math.max(10, Math.min(100, Math.round((state.totalPoints / totalAssetsTemp) * 100))) : 100;
+            document.getElementById('analysis-health-val').innerText = healthPercentage + '%';
+
+            // 재무상태표의 세부 내용을 유저 기입 상태로 완벽 매핑
+            renderStatementOfFinancialPosition();
+
+            document.getElementById('analysis-gpa-val').innerText = state.totalPoints.toLocaleString() + ' 원';
+            document.getElementById('analysis-asset-count').innerText = state.transactions.length + ' 건';
+
+            renderDiaryList();
+            updateAIFeedback();
+        }
+
+        // 장부 렌더링 세부 함수
+        function renderLedger(searchKeyword = '') {
+            const listContainer = document.getElementById('ledger-list');
+            listContainer.innerHTML = '';
+
+            const filtered = state.transactions.filter(tx => {
+                if (state.activeFilter !== 'all') {
+                    if (state.activeFilter === 'gpa' && tx.category !== '학점') return false;
+                    if (state.activeFilter === 'cert' && tx.category !== '자격증') return false;
+                    if (state.activeFilter === 'stress' && tx.category !== '스트레스') return false;
+                }
+                if (searchKeyword) {
+                    return tx.detail.toLowerCase().includes(searchKeyword) || tx.category.toLowerCase().includes(searchKeyword);
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-8 text-slate-400 text-xs">
+                        <i class="fa-solid fa-face-lightbulb text-lg mb-2 block"></i>
+                        기록된 장부가 존재하지 않습니다.
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(tx => {
+                const colorClass = tx.amount > 0 ? 'text-blue-600' : 'text-rose-500';
+                const sign = tx.amount > 0 ? '+' : '';
+                const bgTagClass = tx.amount > 0 ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600';
+
+                const rowHtml = `
+                    <div class="grid grid-cols-12 items-center text-sm px-2 py-3 bg-slate-50 rounded-2xl border border-slate-100/50 hover:bg-slate-100/50 transition-colors">
+                        <div class="col-span-3 text-xs font-bold text-slate-400">${tx.date}</div>
+                        <div class="col-span-5 font-semibold text-slate-700">${tx.detail}</div>
+                        <div class="col-span-2 text-center">
+                            <span class="${bgTagClass} text-[10px] font-bold px-2 py-1 rounded-lg">${tx.category}</span>
+                        </div>
+                        <div class="col-span-2 text-right font-bold ${colorClass}">${sign}${tx.amount.toLocaleString()} 원</div>
+                    </div>
+                `;
+                listContainer.insertAdjacentHTML('beforeend', rowHtml);
+            });
+        }
+
+        // 일기 리스트 렌더링
+        function renderDiaryList() {
+            const container = document.getElementById('diary-list');
+            container.innerHTML = '';
+
+            if (state.diaries.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400 text-xs">
+                        <i class="fa-solid fa-lock text-xl mb-2 text-indigo-300 block"></i>
+                        암호화 보관함이 비어 있습니다.<br>비밀키로 일기를 보관해 보세요.
+                    </div>
+                `;
+                return;
+            }
+
+            state.diaries.forEach(d => {
+                const cardHtml = `
+                    <div class="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between hover:bg-slate-100/50 transition-colors">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="text-[10px] text-indigo-600 bg-indigo-50 font-bold px-2 py-0.5 rounded-md"><i class="fa-solid fa-shield-halved mr-1"></i>E2EE</span>
+                                <p class="text-xs text-slate-400 font-bold mt-1">${d.date}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="decryptDiary(${d.id})" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold bg-white border border-indigo-100 px-2.5 py-1 rounded-lg shadow-sm">
+                                    <i class="fa-solid fa-key"></i> 열기
+                                </button>
+                                <button onclick="deleteDiary(${d.id})" class="text-rose-500 hover:text-rose-700 text-xs p-1">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-[9px] text-slate-600 font-semibold truncate bg-slate-200/50 p-2 rounded-lg text-center tracking-widest">
+                            ${d.title.substring(0, 24)}...
+                        </p>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        // 정밀 감사 재무상태표의 Dynamic Mapping 이식
+        // 자산총계와 부채총계만을 남긴 채, 자산계정줄과 부채계정줄에 내가 입력한 세부 내용들이 완벽 대응되어 표기됩니다.
+        function renderStatementOfFinancialPosition() {
+            const tableBody = document.getElementById('dynamic-bs-body');
+            tableBody.innerHTML = '';
+
+            // 자산과 부채 트랜잭션 선별 분배
+            const assetTxs = state.transactions.filter(tx => tx.amount > 0);
+            const liabilityTxs = state.transactions.filter(tx => tx.amount < 0);
+
+            const maxLength = Math.max(assetTxs.length, liabilityTxs.length);
+
+            if (maxLength === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center text-slate-400 text-xs py-10">
+                            <i class="fa-solid fa-folder-open text-lg mb-2 block"></i>
+                            현재 등록된 자산 및 부채 명세가 없습니다. 홈에서 자산을 평가 등록하세요.
+                        </td>
+                    </tr>
+                `;
+                document.getElementById('bs-total-assets').innerText = '0 원';
+                document.getElementById('bs-total-liabilities').innerText = '0 원';
+                return;
+            }
+
+            for (let i = 0; i < maxLength; i++) {
+                const asset = assetTxs[i];
+                const liability = liabilityTxs[i];
+
+                const assetName = asset ? `${asset.detail} (${asset.category})` : '';
+                const assetAmt = asset ? `${asset.amount.toLocaleString()} 원` : '';
+
+                const liabilityName = liability ? `${liability.detail} (${liability.category})` : '';
+                const liabilityAmt = liability ? `${Math.abs(liability.amount).toLocaleString()} 원` : '';
+
+                const rowHtml = `
+                    <tr>
+                        <td class="font-medium text-slate-800">${assetName}</td>
+                        <td class="text-right text-blue-600 font-semibold">${assetAmt}</td>
+                        <td class="font-medium text-slate-800">${liabilityName}</td>
+                        <td class="text-right text-rose-500 font-semibold">${liabilityAmt}</td>
+                    </tr>
+                `;
+                tableBody.insertAdjacentHTML('beforeend', rowHtml);
+            }
+
+            // 자산 총합 및 부채 총합 동기화
+            document.getElementById('bs-total-assets').innerText = state.profitSum.toLocaleString() + ' 원';
+            document.getElementById('bs-total-liabilities').innerText = Math.abs(state.lossSum).toLocaleString() + ' 원';
+        }
+
+        // AI 피드백 멘트
+        function updateAIFeedback() {
+            const feedbackBox = document.getElementById('ai-feedback-msg');
+            
+            if (state.mentalActual < 50) {
+                feedbackBox.innerHTML = `
+                    🚨 <strong class="text-rose-300">위험 경보: 극도의 스트레스 번아웃 발견!</strong><br><br>
+                    스트레스 수치가 대거 누적되어 멘탈 밸런스 점수가 목표치 대비 현저히 낮은 ${state.mentalActual}% 상태입니다.<br><br>
+                    이 경우 회계학적으로 자산 효율이 급격히 저하되므로, 즉시 일기장에서 속마음을 터놓고 작성 시 부여되는 감정 치유 보너스 자산으로 해소하기를 적극 제언합니다.
+                `;
+            } else if (state.gpaActual < state.gpaTarget) {
+                feedbackBox.innerHTML = `
+                    📚 <strong class="text-yellow-300 font-bold">경영 조언: 학업 기여 부족</strong><br><br>
+                    현재 학점 달성도(${state.gpaActual}%)가 목표치인 ${state.gpaTarget}%에 미치지 못하여 재무 구조의 쏠림이 생기고 있습니다.<br><br>
+                    학업 과제를 이수하여 실시간 학점 가치 평가를 추가 계상함으로써 자산 구성비를 올바른 비율로 다각화하시기 바랍니다.
+                `;
+            } else {
+                feedbackBox.innerHTML = `
+                    🎉 <strong class="text-emerald-300 font-extrabold">최상: 완벽한 성장 밸런스 궤도!</strong><br><br>
+                    축하합니다! 현재 모든 자산 획득 가치와 스트레스 해소 수준이 목표 지표를 전량 돌파하는 황금비를 달성했습니다.<br><br>
+                    포트폴리오의 안전성과 누적 순성장 이익 가치가 최고점을 경신 중이오니 기세를 완주 끝까지 이어나가십시오!
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
